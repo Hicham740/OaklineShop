@@ -1,0 +1,39 @@
+export function Logo({ size = 36 }: { size?: number }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 64 64"
+      width={size}
+      height={size}
+      role="img"
+      aria-label="Oakline"
+      className="shrink-0"
+    >
+      <rect width="64" height="64" rx="16" fill="#0F7A5C" />
+      <g transform="translate(0 -2)">
+        <g fill="#FFFFFF">
+          <circle cx="32" cy="20" r="7" />
+          <circle cx="23" cy="29" r="7" />
+          <circle cx="41" cy="29" r="7" />
+          <circle cx="24" cy="39" r="7" />
+          <circle cx="40" cy="39" r="7" />
+          <ellipse cx="32" cy="31" rx="9" ry="14" />
+        </g>
+        <path
+          d="M32 44v10"
+          stroke="#FFFFFF"
+          strokeWidth="4"
+          strokeLinecap="round"
+          fill="none"
+        />
+        <path
+          d="M32 24v18"
+          stroke="#0F7A5C"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          fill="none"
+        />
+      </g>
+    </svg>
+  );
+}
