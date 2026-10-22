@@ -160,13 +160,15 @@ function ShopInner() {
     <>
       <TopBanner />
       <Header />
-      <main className="mx-auto max-w-[1200px] px-5 w-full pb-4">
-        <nav className="text-sm text-gray-500 mt-6 flex gap-2">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1200px] px-5 w-full pb-4">
+        <nav aria-label={t.breadcrumb} className="text-sm text-gray-500 mt-6 flex gap-2">
           <Link href="/" className="hover:text-black">
             {t.home}
           </Link>
-          <span>/</span>
-          <span className="text-black font-medium">{t.shopAll}</span>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" className="text-black font-medium">
+            {t.shopAll}
+          </span>
         </nav>
 
         <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
@@ -174,7 +176,9 @@ function ShopInner() {
             <h1 className="text-[40px] font-extrabold tracking-tight leading-none">
               {t.shopAll}
             </h1>
-            <p className="text-gray-500 mt-2">{t.productsCount(filtered.length)}</p>
+            <p aria-live="polite" className="text-gray-500 mt-2">
+              {t.productsCount(filtered.length)}
+            </p>
           </div>
           <label className="flex items-center gap-3 text-[15px] font-medium">
             {t.sortBy}
@@ -194,17 +198,25 @@ function ShopInner() {
 
         <div className="mt-6 grid md:grid-cols-[220px_1fr] gap-10">
           {/* Filters */}
-          <aside className="space-y-7">
+          <aside aria-label={t.filters} className="space-y-7">
             <div>
+              <label htmlFor="shop-search" className="sr-only">
+                {t.search}
+              </label>
               <input
+                id="shop-search"
+                type="search"
                 value={query}
                 onChange={(e) => handleQuery(e.target.value)}
                 placeholder={t.search}
+                autoComplete="off"
                 className="w-full bg-[#f2f3f5] rounded-full px-4 py-2.5 text-sm outline-none"
               />
             </div>
-            <div>
-              <h3 className="font-bold mb-3">{t.category}</h3>
+            <div role="group" aria-labelledby="category-heading">
+              <h3 id="category-heading" className="font-bold mb-3">
+                {t.category}
+              </h3>
               <ul className="space-y-3 text-[15px]">
                 {categories.map((c) => (
                   <li key={c}>
@@ -221,8 +233,10 @@ function ShopInner() {
                 ))}
               </ul>
             </div>
-            <div>
-              <h3 className="font-bold mb-2">{t.price}</h3>
+            <div role="group" aria-labelledby="price-heading">
+              <h3 id="price-heading" className="font-bold mb-2">
+                {t.price}
+              </h3>
               <div className="flex gap-2">
                 <label className="flex-1">
                   <span className="text-[13px] text-gray-500">{t.min}</span>
@@ -252,8 +266,10 @@ function ShopInner() {
                 </label>
               </div>
             </div>
-            <div>
-              <h3 className="font-bold mb-3">{t.availability}</h3>
+            <div role="group" aria-labelledby="availability-heading">
+              <h3 id="availability-heading" className="font-bold mb-3">
+                {t.availability}
+              </h3>
               <ul className="space-y-3 text-[15px]">
                 <li>
                   <label className="flex items-center gap-2.5 cursor-pointer">
@@ -286,6 +302,7 @@ function ShopInner() {
               </ul>
             </div>
             <button
+              type="button"
               onClick={clear}
               className="w-full border border-black rounded-full py-2.5 font-semibold text-[15px] hover:bg-black hover:text-white transition-colors"
             >
@@ -300,7 +317,9 @@ function ShopInner() {
             ) : loading && visibleProducts.length === 0 ? (
               <ProductGridSkeleton />
             ) : filtered.length === 0 ? (
-              <p className="text-gray-500 py-20 text-center">{t.noResults}</p>
+              <p role="status" className="text-gray-500 py-20 text-center">
+                {t.noResults}
+              </p>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-8">
                 {paged.map((p) => (
@@ -309,12 +328,26 @@ function ShopInner() {
               </div>
             )}
             {totalPages > 1 && (
-              <div className="mt-12 flex items-center justify-center gap-2">
+              <nav
+                aria-label={t.pagination}
+                className="mt-12 flex items-center justify-center gap-2"
+              >
+                <button
+                  type="button"
+                  aria-label={t.previousPage}
+                  disabled={safePage === 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="w-11 h-11 rounded-full hover:bg-gray-100 text-xl rtl:rotate-180 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <span aria-hidden="true">‹</span>
+                </button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(
                   (n) => (
                     <button
                       key={n}
+                      type="button"
                       onClick={() => setPage(n)}
+                      aria-label={t.pageNumber(n)}
                       aria-current={safePage === n ? "page" : undefined}
                       className={`w-11 h-11 rounded-full font-semibold ${
                         safePage === n
@@ -326,16 +359,18 @@ function ShopInner() {
                     </button>
                   ),
                 )}
-                {safePage < totalPages && (
-                  <button
-                    aria-label="Next page"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="w-11 h-11 rounded-full hover:bg-gray-100 text-xl rtl:rotate-180"
-                  >
-                    ›
-                  </button>
-                )}
-              </div>
+                <button
+                  type="button"
+                  aria-label={t.nextPage}
+                  disabled={safePage === totalPages}
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  className="w-11 h-11 rounded-full hover:bg-gray-100 text-xl rtl:rotate-180 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <span aria-hidden="true">›</span>
+                </button>
+              </nav>
             )}
           </div>
         </div>

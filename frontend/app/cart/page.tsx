@@ -1,16 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { Header } from "@/components/Header";
 import { QtyStepper } from "@/components/QtyStepper";
 import { ProductImage } from "@/components/ProductCard";
-import { formatPrice } from "@/lib/products";
 import { toDZD, formatDZDValue } from "@/lib/currency";
 import { useCart } from "@/lib/cart";
 import { useCatalog } from "@/lib/catalog";
-import { savePlacedOrder } from "@/lib/admin-orders";
-import type { AdminOrder } from "@/lib/admin";
+import { placeOrder } from "@/lib/checkout";
+import { useAuth } from "@/lib/auth";
 import { useLanguage, type Strings } from "@/lib/language";
 
 type PaymentMethod = "cod" | "cib" | "edahabia";
@@ -53,6 +59,17 @@ const ALL_TOUCHED: Record<CheckoutField, boolean> = {
   postalCode: true,
 };
 
+// Used to move focus to the first invalid input after a failed submit.
+const FIELD_ORDER: CheckoutField[] = [
+  "email",
+  "firstName",
+  "lastName",
+  "phone",
+  "address",
+  "city",
+  "postalCode",
+];
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ALGERIAN_PHONE_PATTERN = /^(?:\+213|00213|0)[5-7]\d{8}$/;
 
@@ -69,10 +86,6 @@ function inputClass(invalid: boolean) {
 
 function phoneForLink(value: string) {
   return value.replace(/[^\d+]/g, "");
-}
-
-function createOrderNumber() {
-  return `ORD-${Date.now().toString().slice(-6)}`;
 }
 
 function validateCheckout(form: CheckoutForm, t: Strings): CheckoutErrors {
@@ -109,29 +122,55 @@ function Field({
   label,
   error,
   required = false,
+  htmlFor,
   children,
 }: {
   label: string;
   error?: string;
   required?: boolean;
+  htmlFor: string;
   children: ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="font-medium text-[15px]">
+    <div className="block">
+      <label htmlFor={htmlFor} className="font-medium text-[15px]">
         {label}
-        {required && <span className="text-red-500"> *</span>}
-      </span>
+        {required && (
+          <span className="text-red-500" aria-hidden="true">
+            {" "}
+            *
+          </span>
+        )}
+      </label>
       <div className="mt-1.5">{children}</div>
-      {error && <span className="mt-1.5 block text-sm text-red-600">{error}</span>}
-    </label>
+      {error && (
+        <span id={`${htmlFor}-error`} className="mt-1.5 block text-sm text-red-600">
+          {error}
+        </span>
+      )}
+    </div>
   );
 }
 
-function OrderConfirmation({ order }: { order: PlacedOrder }) {
+function OrderConfirmation({
+  order,
+  trackHref,
+  showSignupPrompt = false,
+}: {
+  order: PlacedOrder;
+  trackHref?: string;
+  showSignupPrompt?: boolean;
+}) {
   const { t } = useLanguage();
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const nextStep =
     order.payment === "cod" ? t.nextStepsCOD : t.nextStepsCard;
+
+  // Move focus to the confirmation heading so screen-reader and keyboard
+  // visitors know the checkout succeeded without searching the page.
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
 
   return (
     <div className="mx-auto max-w-[760px] py-12">
@@ -151,7 +190,11 @@ function OrderConfirmation({ order }: { order: PlacedOrder }) {
             <path d="m5 12 4.5 4.5L19 7" />
           </svg>
         </span>
-        <h1 className="mt-5 text-[36px] font-extrabold tracking-tight">
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className="mt-5 text-[36px] font-extrabold tracking-tight"
+        >
           {t.orderConfirmed}
         </h1>
         <p className="mx-auto mt-2 max-w-[500px] text-gray-500">
@@ -219,6 +262,30 @@ function OrderConfirmation({ order }: { order: PlacedOrder }) {
         {t.demoOrderNote}
       </p>
 
+      {trackHref ? (
+        <p className="mt-3 rounded-2xl border border-[#0e7a5d]/20 bg-[#0e7a5d]/5 px-5 py-4 text-sm text-gray-700">
+          <Link
+            href={trackHref}
+            className="inline-flex items-center gap-1.5 font-bold text-[#0e7a5d] hover:underline"
+          >
+            {t.trackThisOrder}
+            <span aria-hidden="true" className="rtl:rotate-180">
+              →
+            </span>
+          </Link>
+        </p>
+      ) : showSignupPrompt ? (
+        <p className="mt-3 rounded-2xl border border-gray-200 px-5 py-4 text-sm text-gray-600">
+          {t.createAccountFuture}{" "}
+          <Link
+            href="/signup?next=/account"
+            className="font-bold text-[#0e7a5d] hover:underline"
+          >
+            {t.createAccount}
+          </Link>
+        </p>
+      ) : null}
+
       <div className="mt-7 flex flex-col gap-3 sm:flex-row">
         <Link
           href="/shop"
@@ -239,8 +306,13 @@ function OrderConfirmation({ order }: { order: PlacedOrder }) {
 
 export default function CartPage() {
   const { t } = useLanguage();
-  const { lines, setQty, remove, subtotal, clear } = useCart();
-  const { getProductById, adjustStock } = useCatalog();
+  const { user, loading: authLoading } = useAuth();
+  const { lines, setQty, remove, clear } = useCart();
+  const {
+    getProductById,
+    reload: reloadCatalog,
+    loading: catalogLoading,
+  } = useCatalog();
 
   const [promo, setPromo] = useState("");
   const [promoApplied, setPromoApplied] = useState(false);
@@ -250,12 +322,72 @@ export default function CartPage() {
     {},
   );
   const [order, setOrder] = useState<PlacedOrder | null>(null);
+  const [placing, setPlacing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Prefill the delivery form for a signed-in customer, but never overwrite a
+  // field they have already started editing.
+  useEffect(() => {
+    if (user?.role !== "customer") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setForm((previous) => ({
+      ...previous,
+      email: previous.email || user.email,
+      firstName: previous.firstName || (user.firstName ?? ""),
+      lastName: previous.lastName || (user.lastName ?? ""),
+      phone: previous.phone || (user.phone ?? ""),
+    }));
+  }, [user]);
 
   const isCard = method !== "cod";
+
+  const paymentOptions = [
+    { value: "cod", title: t.payCOD, sub: t.payCODSub },
+    { value: "cib", title: t.payCIB, sub: t.payCardSub },
+    { value: "edahabia", title: t.payEdahabia, sub: t.payCardSub },
+  ] as const;
+
+  // Native radio groups move with the arrow keys. Recreate that behaviour for
+  // the card-style buttons so keyboard users are not forced to Tab through all
+  // three payment methods.
+  const handlePaymentKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    current: PaymentMethod,
+  ) => {
+    const keys = ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+
+    const index = paymentOptions.findIndex((option) => option.value === current);
+    let nextIndex = index;
+
+    if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = paymentOptions.length - 1;
+    else {
+      const delta =
+        event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+      nextIndex =
+        (index + delta + paymentOptions.length) % paymentOptions.length;
+    }
+
+    const next = paymentOptions[nextIndex].value;
+    setMethod(next);
+    document.getElementById(`payment-${next}`)?.focus();
+  };
 
   const detailed = lines
     .map((line) => ({ line, product: getProductById(line.id) }))
     .filter((item) => item.product);
+
+  // Calculate in DZD the same way the API does: round each unit price first,
+  // then multiply by quantity. This keeps the summary and the confirmation
+  // total aligned.
+  const subtotalDZD = detailed.reduce(
+    (sum, { line, product }) => sum + toDZD(product!.price) * line.qty,
+    0,
+  );
+  const discountDZD = promoApplied ? Math.round(subtotalDZD * 0.1) : 0;
+  const totalDZD = subtotalDZD - discountDZD;
 
   const stockIssue = detailed.some(
     ({ line, product }) => line.qty > (product?.stock ?? 0),
@@ -278,76 +410,80 @@ export default function CartPage() {
   const errorFor = (field: CheckoutField) =>
     touched[field] ? errors[field] : undefined;
 
-  const handlePlaceOrder = (event: FormEvent<HTMLFormElement>) => {
+  const handlePlaceOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setTouched(ALL_TOUCHED);
-    if (!isFormValid) return;
+    setCheckoutError(null);
 
-    const now = new Date();
-    const dateLabel = now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-    const timeLabel = now.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    if (!isFormValid) {
+      const firstInvalid = FIELD_ORDER.find((field) => errors[field]);
+      if (firstInvalid) {
+        // Wait for the inline error messages to render, then focus the field.
+        requestAnimationFrame(() =>
+          document.getElementById(firstInvalid)?.focus(),
+        );
+      }
+      return;
+    }
 
-    const orderLines = detailed.map(({ line, product }) => ({
-      productId: line.id,
-      name: product!.name,
-      qty: line.qty,
-      unitPriceDZD: toDZD(product!.price),
-    }));
+    setPlacing(true);
+    try {
+      // The API recalculates prices and checks stock inside a transaction, so
+      // the browser only sends product ids and quantities.
+      const created = await placeOrder({
+        customer: {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
+          city: form.city.trim(),
+          postalCode: form.postalCode.trim(),
+        },
+        lines: detailed.map(({ line }) => ({
+          productId: line.id,
+          qty: line.qty,
+        })),
+        payment:
+          method === "cod" ? "COD" : method === "cib" ? "CIB" : "EDAHABIA",
+        promoCode: promoApplied ? promo.trim() : undefined,
+      });
 
-    const subtotalDZD = orderLines.reduce(
-      (sum, item) => sum + item.unitPriceDZD * item.qty,
-      0,
-    );
-    const discountDZD = promoApplied ? Math.round(subtotalDZD * 0.1) : 0;
-    const totalDZD = subtotalDZD - discountDZD;
-    const orderNumber = createOrderNumber();
-
-    const placedOrder: AdminOrder = {
-      id: orderNumber,
-      customer: `${form.firstName.trim()} ${form.lastName.trim()}`,
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      address: form.address.trim(),
-      city: form.city.trim(),
-      postalCode: form.postalCode.trim(),
-      date: dateLabel,
-      lines: orderLines,
-      payment:
-        method === "cod" ? "COD" : method === "cib" ? "CIB" : "EDAHABIA",
-      status: "Pending",
-      history: [{ status: "Pending", date: `${dateLabel}, ${timeLabel}` }],
-      notes: "",
-      discountDZD,
-    };
-
-    savePlacedOrder(placedOrder);
-    adjustStock(
-      orderLines.map((line) => ({ productId: line.productId, qty: line.qty })),
-    );
-
-    setOrder({
-      ...form,
-      number: orderNumber,
-      totalDZD,
-      payment: method,
-    });
-    clear();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+      setOrder({
+        ...form,
+        number: created.id,
+        totalDZD: created.totalDZD,
+        payment: method,
+      });
+      clear();
+      // Refresh product stock labels for the next visit to the shop.
+      void reloadCatalog();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      setCheckoutError(
+        error instanceof Error
+          ? error.message
+          : "We could not place your order. Please try again.",
+      );
+    } finally {
+      setPlacing(false);
+    }
   };
 
   return (
     <>
       <Header minimal />
-      <main className="mx-auto max-w-[1200px] px-5 w-full pb-20">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1200px] px-5 w-full pb-20">
         {order ? (
-          <OrderConfirmation order={order} />
+          <OrderConfirmation
+            order={order}
+            trackHref={
+              user?.role === "customer"
+                ? `/account/orders/${encodeURIComponent(order.number)}`
+                : undefined
+            }
+            showSignupPrompt={!user && !authLoading}
+          />
         ) : (
           <>
             <Link
@@ -360,7 +496,58 @@ export default function CartPage() {
               {t.yourCart}
             </h1>
 
-            {detailed.length === 0 ? (
+            {!authLoading &&
+              (user?.role === "customer" ? (
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#0e7a5d]/20 bg-[#0e7a5d]/5 px-5 py-4">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-semibold">
+                      {t.signedInAs(user.name)}
+                    </span>
+                    <span className="text-gray-500"> · {user.email}</span>
+                  </p>
+                  <Link
+                    href="/account"
+                    className="text-sm font-bold text-[#0e7a5d] hover:underline"
+                  >
+                    {t.myAccount} →
+                  </Link>
+                </div>
+              ) : !user ? (
+                <div className="mt-5 rounded-2xl border border-gray-200 p-5">
+                  <p className="font-bold">{t.accountPromptTitle}</p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {t.accountPromptSub}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <Link
+                      href="/login?next=/cart"
+                      className="rounded-full bg-[#0e7a5d] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0b654d]"
+                    >
+                      {t.signIn}
+                    </Link>
+                    <Link
+                      href="/signup?next=/cart"
+                      className="rounded-full border border-black px-5 py-2 text-sm font-semibold transition-colors hover:bg-black hover:text-white"
+                    >
+                      {t.createAccount}
+                    </Link>
+                    <span className="text-sm text-gray-500">
+                      {t.continueAsGuest}
+                    </span>
+                  </div>
+                </div>
+              ) : null)}
+
+            {catalogLoading && lines.length > 0 && detailed.length === 0 ? (
+              <div
+                role="status"
+                className="mt-6 grid animate-pulse gap-6 border-y border-gray-100 py-10 lg:grid-cols-2"
+              >
+                <div className="h-36 rounded-2xl bg-gray-100" />
+                <div className="h-36 rounded-2xl bg-gray-100" />
+                <span className="sr-only">Loading your cart…</span>
+              </div>
+            ) : detailed.length === 0 ? (
               <div className="mt-6 border-y border-gray-100 py-16 text-center">
                 <p className="text-lg font-semibold">{t.emptyCart}</p>
                 <Link
@@ -402,7 +589,7 @@ export default function CartPage() {
                               </div>
                             </div>
                             <div className="font-bold text-[17px]">
-                              {formatPrice(product!.price * line.qty)}
+                              {formatDZDValue(toDZD(product!.price) * line.qty)}
                             </div>
                           </div>
                           <div className="mt-4 flex items-center gap-4">
@@ -411,10 +598,12 @@ export default function CartPage() {
                               qty={line.qty}
                               onChange={(qty) => setQty(line.id, qty)}
                               max={Math.max(1, product!.stock)}
+                              label={`${t.quantity}: ${product!.name}`}
                             />
                             <button
                               type="button"
                               onClick={() => remove(line.id)}
+                              aria-label={`${t.remove} ${product!.name}`}
                               className="text-gray-500 underline hover:text-black"
                             >
                               {t.remove}
@@ -432,9 +621,11 @@ export default function CartPage() {
                     <Field
                       label={t.email}
                       required
+                      htmlFor="email"
                       error={errorFor("email")}
                     >
                       <input
+                        id="email"
                         type="email"
                         name="email"
                         autoComplete="email"
@@ -446,6 +637,9 @@ export default function CartPage() {
                         placeholder="you@example.com"
                         dir="ltr"
                         aria-invalid={Boolean(errorFor("email"))}
+                        aria-describedby={
+                          errorFor("email") ? "email-error" : undefined
+                        }
                         className={inputClass(Boolean(errorFor("email")))}
                       />
                     </Field>
@@ -454,9 +648,11 @@ export default function CartPage() {
                       <Field
                         label={t.firstName}
                         required
+                        htmlFor="firstName"
                         error={errorFor("firstName")}
                       >
                         <input
+                          id="firstName"
                           name="firstName"
                           autoComplete="given-name"
                           value={form.firstName}
@@ -465,15 +661,22 @@ export default function CartPage() {
                           }
                           onBlur={() => markTouched("firstName")}
                           aria-invalid={Boolean(errorFor("firstName"))}
+                          aria-describedby={
+                            errorFor("firstName")
+                              ? "firstName-error"
+                              : undefined
+                          }
                           className={inputClass(Boolean(errorFor("firstName")))}
                         />
                       </Field>
                       <Field
                         label={t.lastName}
                         required
+                        htmlFor="lastName"
                         error={errorFor("lastName")}
                       >
                         <input
+                          id="lastName"
                           name="lastName"
                           autoComplete="family-name"
                           value={form.lastName}
@@ -482,6 +685,11 @@ export default function CartPage() {
                           }
                           onBlur={() => markTouched("lastName")}
                           aria-invalid={Boolean(errorFor("lastName"))}
+                          aria-describedby={
+                            errorFor("lastName")
+                              ? "lastName-error"
+                              : undefined
+                          }
                           className={inputClass(Boolean(errorFor("lastName")))}
                         />
                       </Field>
@@ -490,9 +698,11 @@ export default function CartPage() {
                     <Field
                       label={t.phone}
                       required
+                      htmlFor="phone"
                       error={errorFor("phone")}
                     >
                       <input
+                        id="phone"
                         type="tel"
                         name="phone"
                         autoComplete="tel"
@@ -505,6 +715,9 @@ export default function CartPage() {
                         inputMode="tel"
                         dir="ltr"
                         aria-invalid={Boolean(errorFor("phone"))}
+                        aria-describedby={
+                          errorFor("phone") ? "phone-error" : undefined
+                        }
                         className={inputClass(Boolean(errorFor("phone")))}
                       />
                     </Field>
@@ -512,9 +725,11 @@ export default function CartPage() {
                     <Field
                       label={t.address}
                       required
+                      htmlFor="address"
                       error={errorFor("address")}
                     >
                       <input
+                        id="address"
                         name="address"
                         autoComplete="street-address"
                         value={form.address}
@@ -523,6 +738,9 @@ export default function CartPage() {
                         }
                         onBlur={() => markTouched("address")}
                         aria-invalid={Boolean(errorFor("address"))}
+                        aria-describedby={
+                          errorFor("address") ? "address-error" : undefined
+                        }
                         className={inputClass(Boolean(errorFor("address")))}
                       />
                     </Field>
@@ -531,9 +749,11 @@ export default function CartPage() {
                       <Field
                         label={t.city}
                         required
+                        htmlFor="city"
                         error={errorFor("city")}
                       >
                         <input
+                          id="city"
                           name="city"
                           autoComplete="address-level2"
                           value={form.city}
@@ -542,15 +762,20 @@ export default function CartPage() {
                           }
                           onBlur={() => markTouched("city")}
                           aria-invalid={Boolean(errorFor("city"))}
+                          aria-describedby={
+                            errorFor("city") ? "city-error" : undefined
+                          }
                           className={inputClass(Boolean(errorFor("city")))}
                         />
                       </Field>
                       <Field
                         label={t.postalCode}
                         required
+                        htmlFor="postalCode"
                         error={errorFor("postalCode")}
                       >
                         <input
+                          id="postalCode"
                           name="postalCode"
                           autoComplete="postal-code"
                           value={form.postalCode}
@@ -561,6 +786,11 @@ export default function CartPage() {
                           placeholder="16000"
                           inputMode="numeric"
                           aria-invalid={Boolean(errorFor("postalCode"))}
+                          aria-describedby={
+                            errorFor("postalCode")
+                              ? "postalCode-error"
+                              : undefined
+                          }
                           className={inputClass(
                             Boolean(errorFor("postalCode")),
                           )}
@@ -580,25 +810,20 @@ export default function CartPage() {
                     role="radiogroup"
                     aria-label={t.paymentMethod}
                   >
-                    {(
-                      [
-                        { value: "cod", title: t.payCOD, sub: t.payCODSub },
-                        { value: "cib", title: t.payCIB, sub: t.payCardSub },
-                        {
-                          value: "edahabia",
-                          title: t.payEdahabia,
-                          sub: t.payCardSub,
-                        },
-                      ] as const
-                    ).map((option) => {
+                    {paymentOptions.map((option) => {
                       const selected = method === option.value;
                       return (
                         <button
                           key={option.value}
+                          id={`payment-${option.value}`}
                           type="button"
                           role="radio"
                           aria-checked={selected}
+                          tabIndex={selected ? 0 : -1}
                           onClick={() => setMethod(option.value)}
+                          onKeyDown={(event) =>
+                            handlePaymentKeyDown(event, option.value)
+                          }
                           className={`rounded-2xl border-2 p-4 text-start transition-colors ${
                             selected
                               ? "border-[#0e7a5d] bg-[#0e7a5d]/5"
@@ -620,8 +845,10 @@ export default function CartPage() {
                     <>
                       <p className="text-gray-500 text-sm">{t.cardNote}</p>
                       <div className="mt-5 space-y-5">
-                        <Field label={t.cardNumber}>
+                        <Field label={t.cardNumber} htmlFor="cardNumber">
                           <input
+                            id="cardNumber"
+                            name="cardNumber"
                             placeholder="0000 0000 0000 0000"
                             inputMode="numeric"
                             autoComplete="cc-number"
@@ -630,16 +857,20 @@ export default function CartPage() {
                           />
                         </Field>
                         <div className="grid sm:grid-cols-2 gap-5">
-                          <Field label={t.expiry}>
+                          <Field label={t.expiry} htmlFor="cardExpiry">
                             <input
+                              id="cardExpiry"
+                              name="cardExpiry"
                               placeholder="MM / YY"
                               autoComplete="cc-exp"
                               dir="ltr"
                               className={inputClass(false)}
                             />
                           </Field>
-                          <Field label={t.securityCode}>
+                          <Field label={t.securityCode} htmlFor="cardCvc">
                             <input
+                              id="cardCvc"
+                              name="cardCvc"
                               placeholder="CVC"
                               inputMode="numeric"
                               autoComplete="cc-csc"
@@ -660,16 +891,23 @@ export default function CartPage() {
                     {t.orderSummary}
                   </h2>
                   <form
+                    aria-label={t.promoCode}
                     className="mt-5 flex gap-2"
                     onSubmit={(event) => {
                       event.preventDefault();
                       if (promo.trim()) setPromoApplied(true);
                     }}
                   >
+                    <label htmlFor="promo-code" className="sr-only">
+                      {t.promoCode}
+                    </label>
                     <input
+                      id="promo-code"
+                      name="promoCode"
                       value={promo}
                       onChange={(event) => setPromo(event.target.value)}
                       placeholder={t.promoCode}
+                      autoComplete="off"
                       className="flex-1 min-w-0 bg-white border border-gray-300 rounded-full px-5 py-2.5 outline-none"
                     />
                     <button
@@ -680,7 +918,7 @@ export default function CartPage() {
                     </button>
                   </form>
                   {promoApplied && (
-                    <p className="mt-2 text-sm text-[#0e7a5d] font-medium">
+                    <p role="status" className="mt-2 text-sm text-[#0e7a5d] font-medium">
                       {t.promoApplied}
                     </p>
                   )}
@@ -688,9 +926,17 @@ export default function CartPage() {
                     <div className="flex justify-between">
                       <dt className="text-gray-500">{t.subtotal}</dt>
                       <dd className="font-medium">
-                        {formatDZDValue(toDZD(subtotal))}
+                        {formatDZDValue(subtotalDZD)}
                       </dd>
                     </div>
+                    {discountDZD > 0 && (
+                      <div className="flex justify-between text-[#0e7a5d]">
+                        <dt>{t.promoApplied}</dt>
+                        <dd className="font-medium">
+                          −{formatDZDValue(discountDZD)}
+                        </dd>
+                      </div>
+                    )}
                     <div className="flex justify-between gap-4">
                       <dt className="text-gray-500">{t.shipping}</dt>
                       <dd className="font-medium text-right">
@@ -703,26 +949,45 @@ export default function CartPage() {
                       {t.estimatedTotal}
                     </span>
                     <span className="font-extrabold text-[28px]">
-                      {formatDZDValue(
-                        toDZD(promoApplied ? subtotal * 0.9 : subtotal),
-                      )}
+                      {formatDZDValue(totalDZD)}
                     </span>
                   </div>
                   <button
                     type="submit"
                     form="checkout-form"
-                    disabled={!isFormValid}
+                    disabled={!isFormValid || placing}
+                    aria-describedby={
+                      checkoutError || stockIssue || !isFormValid
+                        ? "checkout-status"
+                        : undefined
+                    }
                     className="mt-5 w-full bg-[#0e7a5d] hover:bg-[#0b654d] text-white font-bold rounded-full py-4 text-[17px] transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:hover:bg-gray-300"
                   >
-                    {t.placeOrder}
+                    {placing ? t.placingOrder : t.placeOrder}
                   </button>
-                  {stockIssue ? (
-                    <p className="mt-3 text-center text-sm text-red-600">
+                  {checkoutError ? (
+                    <p
+                      id="checkout-status"
+                      role="alert"
+                      className="mt-3 text-center text-sm text-red-600"
+                    >
+                      {checkoutError}
+                    </p>
+                  ) : stockIssue ? (
+                    <p
+                      id="checkout-status"
+                      role="alert"
+                      className="mt-3 text-center text-sm text-red-600"
+                    >
                       {t.stockIssue}
                     </p>
                   ) : (
                     !isFormValid && (
-                      <p className="mt-3 text-center text-sm text-gray-500">
+                      <p
+                        id="checkout-status"
+                        role="status"
+                        className="mt-3 text-center text-sm text-gray-500"
+                      >
                         {t.completeFields}
                       </p>
                     )

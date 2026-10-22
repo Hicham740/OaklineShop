@@ -1,0 +1,286 @@
+ECOMMERCE PLATFORM - UX FEATURES REPORT
+=======================================
+Date: 22 October 2026
+Project: Oakline ecommerce platform
+Frontend: Next.js 16 (App Router)
+Backend: not connected yet
+Admin panel: /admin (no login page yet)
+
+PURPOSE
+-------
+This report lists the frontend features added or proposed to make the
+shopping experience simple, clear and comfortable for customers, and to
+give the store owner a practical admin area.
+
+Status key:
+[DONE]     = implemented in the frontend
+[PROPOSED] = recommended for the next stage
+
+
+1. GUEST CHECKOUT ONLY  [DONE]
+------------------------------
+- Removed the account/registration icon from the header.
+- Customers can order without creating an account.
+- Keeps the checkout short and reduces the steps before purchase.
+- The header now shows only: language switch, search and cart.
+
+Why it helps:
+- Fewer decisions for the customer.
+- No password management or account recovery needed.
+- Suitable for a small store that mainly uses cash on delivery.
+
+
+2. CLEANER STOREFRONT HEADER  [DONE]
+------------------------------------
+- Removed unused account UI.
+- Kept the cart always visible with an item-count badge.
+- Kept the search box and Arabic/English language switch.
+- Product, shop and cart pages stay focused on shopping.
+
+Why it helps:
+- Less visual noise.
+- Customers immediately understand where to search, switch language
+  and open the cart.
+
+
+3. ADMIN DASHBOARD  [DONE]
+--------------------------
+Path: /admin
+
+- Summary cards: revenue, orders, pending orders and products.
+- Revenue chart for the last six months.
+- Order status breakdown with simple progress bars.
+- Recent orders table with customer, phone, total and status.
+- Top products list.
+- Responsive layout: sidebar on desktop, compact top menu on mobile.
+- No login page for now; a guest-admin state is shown instead.
+
+Why it helps:
+- The owner sees the health of the store at a glance.
+- Orders that need attention are easy to spot.
+- Works on both desktop and phone.
+
+
+4. PRODUCT MANAGEMENT  [DONE]
+-----------------------------
+Paths: /admin/products, /admin/products/new,
+       /admin/products/[id]/edit
+
+- Product list with image, category, price, stock and status.
+- Search, category filter and visibility filter.
+- Add product form with:
+  - name, category, finish and description
+  - price in DZD and stock quantity
+  - photo upload from the device (resized and compressed automatically)
+  - optional image URL or background colour
+  - "New" and "On sale" badges
+  - live preview before saving
+- Create a new category from the product form without leaving the page.
+  New categories appear in the admin filter, shop filter and home cards.
+- Edit any product:
+  - change price, stock and description
+  - change name, category, finish, image and badges
+- Hide or show a product:
+  - hidden products disappear from the storefront
+  - demo products are hidden instead of being deleted
+- Delete products added from the admin panel, with a confirmation prompt.
+- Low-stock and out-of-stock labels.
+- Admin changes are shared with the storefront through one catalogue store.
+
+Why it helps:
+- The owner can manage the catalogue without editing code.
+- The live preview reduces mistakes before saving.
+- Hiding is safer than deleting when a product is temporarily unavailable.
+
+Note:
+- Changes, categories and uploaded images are saved in the browser
+  (localStorage) until the backend is connected. They survive reloads in the
+  same browser.
+
+
+5. ORDER PHONE NUMBER  [DONE]
+-----------------------------
+Paths: /admin/orders, /admin/orders/[id] and the dashboard table
+
+- Every order includes a phone number.
+- The number is shown in the orders table, order details and dashboard.
+- It is a clickable tel: link, so the owner can call the customer directly.
+- Order search also matches phone numbers.
+- Checkout collects and validates the phone number.
+
+Why it helps:
+- Faster delivery confirmation.
+- Fewer failed deliveries because the customer can be contacted.
+- Useful for cash-on-delivery orders.
+
+
+6. EDITABLE ORDER STATUS AND HISTORY  [DONE]
+--------------------------------------------
+Paths: /admin/orders and /admin/orders/[id]
+
+- Each order has a status dropdown:
+  Pending / Shipped / Delivered / Cancelled.
+- Status can be changed from the orders table or the details page.
+- Every change is appended to the order's status history with a timestamp.
+- Dashboard totals and status breakdown update automatically.
+- Internal notes can be added and saved for each order.
+
+Why it helps:
+- The owner can track fulfilment without extra tools.
+- Pending orders are easy to identify.
+- The team can see what happened and when.
+
+
+7. ORDER DETAILS PAGE  [DONE]
+-----------------------------
+Path: /admin/orders/[id]
+
+- Full customer information: name, email, phone.
+- Delivery address, city and postal code.
+- Item list with quantity, unit price and line total.
+- Subtotal, discount and final total.
+- Payment method.
+- Status history timeline.
+- Internal notes for the team.
+- "Print order" uses the browser print dialog.
+- "Export JSON" downloads the complete order.
+
+Why it helps:
+- The owner has all order information on one page.
+- Printing is useful for packing and delivery.
+- Exporting makes it easy to share or archive an order until the backend
+  is connected.
+
+
+8. BETTER STOCK FEEDBACK  [DONE]
+--------------------------------
+- Product cards show "Out of stock" when stock reaches 0.
+- Product cards show "Only X left" when stock is low.
+- Product detail page:
+  - disables "Add to cart" when out of stock
+  - shows the remaining quantity for low stock
+  - limits the quantity selector to the available stock
+- Cart and checkout warn when the requested quantity is no longer available.
+- Placing an order decreases stock automatically.
+- The shop "In stock" filter uses the live stock level.
+
+Why it helps:
+- Customers do not try to buy unavailable products.
+- Low-stock warnings create urgency without being misleading.
+- Stock stays accurate after each demo order.
+
+
+9. LOADING AND ERROR STATES  [DONE]
+-----------------------------------
+- Product grid skeleton cards while products load.
+- Admin table skeleton while orders or products load.
+- Friendly error message with a "Try again" button.
+- Clear message when the backend or catalogue cannot be reached.
+- Empty states for no products, no orders and no search results.
+
+Why it helps:
+- The page feels responsive instead of blank.
+- Customers and admins know what happened and what to do next.
+- The same UI is ready for a real API.
+
+
+10. CHECKOUT VALIDATION AND CONFIRMATION  [DONE]
+------------------------------------------------
+- Required shipping fields with inline error messages.
+- Email format validation.
+- Algerian mobile phone validation (05, 06, 07, +213 and 00213).
+- 5-digit postal code validation.
+- "Place order" stays disabled until every required field is valid.
+- Clear order confirmation screen after placing the order.
+- Confirmation shows: order number, total, delivery address, phone,
+  email and payment method.
+- Confirmation explains the next step for cash on delivery or card payment.
+- "Continue shopping" and "Back to home" links.
+- The cart is cleared after the order is placed.
+- The new order is saved in the browser and appears in /admin/orders.
+
+Why it helps:
+- Customers know exactly what is wrong before they submit.
+- Fewer failed orders because of a missing phone number or address.
+- The confirmation screen gives clear reassurance after purchase.
+- The owner can find the order in the admin panel immediately.
+
+Note:
+- Orders are not saved to a database yet. They are stored in this browser
+  until the backend is connected.
+
+
+11. ADMIN-ADDED PRODUCTS ON THE STOREFRONT  [DONE]
+--------------------------------------------------
+- The storefront and admin panel now share one catalogue.
+- Products added in /admin/products/new appear in /shop.
+- Their detail pages work at /product/[id].
+- Edited prices, descriptions and images appear on the storefront.
+- Hidden products are removed from the shop and product pages.
+
+Why it helps:
+- The owner can test a complete product flow without editing code.
+- Customers see the same catalogue that the admin manages.
+
+
+12. EXISTING STOREFRONT FEATURES THAT SUPPORT UX  [DONE]
+--------------------------------------------------------
+- Product search with live filtering.
+- Category, price, stock and sale filters.
+- Sorting by price and name.
+- Product detail page with quantity selector and finish colours.
+- Persistent cart with quantity controls and order summary.
+- Promo code field in the cart.
+- Payment choice: cash on delivery, CIB and EDAHABIA.
+- Arabic/English switch with right-to-left layout support.
+- Mobile-friendly layouts.
+- Empty-cart and no-results states.
+
+Why it helps:
+- Customers can find products quickly.
+- The cart and checkout flow stay understandable.
+- The site works for both English and Arabic speakers.
+
+
+13. RECOMMENDED NEXT IMPROVEMENTS
+---------------------------------
+HIGH PRIORITY
+[PROPOSED] Connect the backend
+- Load products, orders and stock from the API.
+- Replace localStorage demo data.
+- Keep the current loading, error and retry states.
+
+[PROPOSED] Admin login
+- Protect /admin before release.
+- Keep the login page separate from the storefront.
+- Add logout and session handling.
+
+MEDIUM PRIORITY
+[PROPOSED] Guest order tracking
+- Customer enters order number + phone to see status.
+- No account required.
+- Matches the guest-checkout approach.
+
+[PROPOSED] Save checkout details for the next visit
+- Name, phone and address only, with customer consent.
+- Faster repeat orders.
+
+LOW PRIORITY
+[PROPOSED] Simple analytics
+- Best-selling products and categories.
+- Daily and monthly order counts.
+- Conversion from cart to order.
+
+[PROPOSED] Accessibility pass
+- Keyboard navigation for menus and forms.
+- Focus styles and screen-reader labels.
+
+
+LIMITATIONS OF THE CURRENT DEMO
+-------------------------------
+- There is no backend or database yet.
+- Admin changes, stock, categories and orders are stored in the browser.
+- Uploaded product photos are compressed in the browser and stored there too.
+- Different browsers or devices do not share data.
+- /admin is not protected by a login.
+- Print output depends on the browser print settings.

@@ -19,3 +19,30 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/*
+ * One consistent, high-contrast focus ring for keyboard users.
+ * This sits outside Tailwind's layers so it also beats `outline-none`
+ * utilities on inputs and selects.
+ */
+:focus-visible {
+  outline: 2px solid var(--oak-green);
+  outline-offset: 2px;
+}
+
+/* Light green stays visible on the dark footer and admin sidebar. */
+[data-surface="dark"] :focus-visible {
+  outline-color: #3fbf99;
+}
+
+/* Honour the visitor's motion preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

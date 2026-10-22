@@ -3,10 +3,10 @@
  *
  * The admin panel has no file server yet, so uploaded images are resized and
  * compressed in the browser and saved as a data URL with the product. This
- * keeps them small enough for localStorage and makes the storefront fast.
+ * keeps them small enough to store in PostgreSQL and makes the storefront fast.
  *
- * When the backend is connected, send the original `File` to the API instead
- * and keep the same size limits on the server.
+ * For high-traffic production, send the original `File` to object storage and
+ * keep the same size limits on the server.
  */
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;

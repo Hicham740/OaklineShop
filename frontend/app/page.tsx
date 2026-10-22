@@ -53,7 +53,7 @@ export default function Home() {
     <>
       <TopBanner />
       <Header />
-      <main className="mx-auto max-w-[1200px] px-5 w-full">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1200px] px-5 w-full">
         {/* Hero */}
         <section className="grid md:grid-cols-2 gap-10 items-center py-10">
           <div>
@@ -185,7 +185,9 @@ export default function Home() {
             <p className="text-gray-500 mt-1">{t.newsletterSub}</p>
           </div>
           {subscribed ? (
-            <p className="font-semibold text-[#0e7a5d]">{t.subscribed}</p>
+            <p role="status" className="font-semibold text-[#0e7a5d]">
+              {t.subscribed}
+            </p>
           ) : (
             <form
               className="flex flex-col sm:flex-row gap-3 flex-1"
@@ -194,15 +196,23 @@ export default function Home() {
                 if (email) setSubscribed(true);
               }}
             >
+              <label htmlFor="newsletter-email" className="sr-only">
+                {t.email}
+              </label>
               <input
+                id="newsletter-email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
+                autoComplete="email"
                 className="flex-1 bg-white border border-gray-200 rounded-full px-5 py-3 text-sm outline-none focus:border-[#0e7a5d]"
               />
-              <button className="bg-[#14171d] text-white font-semibold rounded-full px-7 py-3 text-[15px] hover:bg-black">
+              <button
+                type="submit"
+                className="bg-[#14171d] text-white font-semibold rounded-full px-7 py-3 text-[15px] hover:bg-black"
+              >
                 {t.subscribe}
               </button>
             </form>

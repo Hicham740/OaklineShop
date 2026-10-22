@@ -6,9 +6,10 @@
 export function ProductGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div
-      className="grid grid-cols-2 gap-x-5 gap-y-8 lg:grid-cols-3"
+      role="status"
       aria-label="Loading products"
       aria-busy="true"
+      className="grid grid-cols-2 gap-x-5 gap-y-8 lg:grid-cols-3"
     >
       {Array.from({ length: count }).map((_, index) => (
         <div key={index} className="animate-pulse">

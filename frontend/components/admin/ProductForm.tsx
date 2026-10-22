@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ProductImage } from "@/components/ProductCard";
 import { useCatalog, type ProductInput } from "@/lib/catalog";
 import { USD_TO_DZD, formatDZDValue, toDZD } from "@/lib/currency";
@@ -44,7 +44,8 @@ export function ProductForm({
 }: {
   mode: "new" | "edit";
   initial?: Partial<ProductFormValues>;
-  onSubmit: (input: ProductInput) => void;
+  // The parent saves through the API, so this can be async.
+  onSubmit: (input: ProductInput) => Promise<void> | void;
 }) {
   const { categories, addCategory } = useCatalog();
   const [form, setForm] = useState<ProductFormValues>({
@@ -57,6 +58,9 @@ export function ProductForm({
   const [imageInfo, setImageInfo] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState("");
   const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const errorsRef = useRef<HTMLDivElement>(null);
 
   const categoryOptions =
     form.category && !categories.includes(form.category)
@@ -113,8 +117,8 @@ export function ProductForm({
     setImageError(null);
   };
 
-  const handleAddCategory = () => {
-    const result = addCategory(newCategory);
+  const handleAddCategory = async () => {
+    const result = await addCategory(newCategory);
     if (!result.ok) {
       setCategoryError(result.error);
       return;
@@ -125,8 +129,9 @@ export function ProductForm({
     setCategoryError(null);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSubmitError(null);
 
     const nextErrors: string[] = [];
     if (imageBusy) nextErrors.push("Wait for the image to finish optimising.");
@@ -140,24 +145,39 @@ export function ProductForm({
 
     if (nextErrors.length > 0) {
       setErrors(nextErrors);
+      // Move keyboard focus to the summary so the errors are announced.
+      requestAnimationFrame(() => errorsRef.current?.focus());
       return;
     }
 
     setErrors([]);
-    onSubmit({
-      name: form.name.trim(),
-      price: Math.round((priceNumber / USD_TO_DZD) * 100) / 100,
-      category: form.category,
-      tint: form.tint,
-      image: form.image.trim(),
-      isNew: form.isNew,
-      inStock: stockNumber > 0,
-      onSale: form.onSale,
-      finish: form.finish.trim() || undefined,
-      description:
-        form.description.trim() || "More details about this product coming soon.",
-      stock: stockNumber,
-    });
+    setSaving(true);
+    try {
+      await onSubmit({
+        name: form.name.trim(),
+        price: Math.round((priceNumber / USD_TO_DZD) * 100) / 100,
+        category: form.category,
+        tint: form.tint,
+        image: form.image.trim(),
+        isNew: form.isNew,
+        inStock: stockNumber > 0,
+        onSale: form.onSale,
+        finish: form.finish.trim() || undefined,
+        description:
+          form.description.trim() ||
+          "More details about this product coming soon.",
+        stock: stockNumber,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "The product could not be saved. Please try again.";
+      setSubmitError(message);
+      requestAnimationFrame(() => errorsRef.current?.focus());
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -181,17 +201,22 @@ export function ProductForm({
       </div>
 
       <form onSubmit={handleSubmit} className="mt-6">
-        {errors.length > 0 && (
+        {(errors.length > 0 || submitError) && (
           <div
+            ref={errorsRef}
+            tabIndex={-1}
             role="alert"
             className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
             <p className="font-semibold">Please fix the following:</p>
-            <ul className="mt-1 list-inside list-disc">
-              {errors.map((error) => (
-                <li key={error}>{error}</li>
-              ))}
-            </ul>
+            {errors.length > 0 && (
+              <ul className="mt-1 list-inside list-disc">
+                {errors.map((error) => (
+                  <li key={error}>{error}</li>
+                ))}
+              </ul>
+            )}
+            {submitError && <p className="mt-1">{submitError}</p>}
           </div>
         )}
 
@@ -244,7 +269,7 @@ export function ProductForm({
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
-                            handleAddCategory();
+                            void handleAddCategory();
                           }
                         }}
                         placeholder="New category"
@@ -253,7 +278,7 @@ export function ProductForm({
                       />
                       <button
                         type="button"
-                        onClick={handleAddCategory}
+                        onClick={() => void handleAddCategory()}
                         className="shrink-0 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold transition-colors hover:border-black"
                       >
                         Add
@@ -358,11 +383,11 @@ export function ProductForm({
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/avif"
                       onChange={handleImageFile}
-                      className="sr-only"
+                      className="sr-only peer"
                     />
                     <label
                       htmlFor="product-image-upload"
-                      className={`cursor-pointer rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold transition-colors ${
+                      className={`cursor-pointer rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#0e7a5d] ${
                         imageBusy
                           ? "pointer-events-none opacity-60"
                           : "hover:border-black"
@@ -534,9 +559,14 @@ export function ProductForm({
             <div className="rounded-2xl border border-gray-200 bg-white p-4">
               <button
                 type="submit"
-                className="w-full rounded-full bg-[#0e7a5d] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0b654d]"
+                disabled={saving}
+                className="w-full rounded-full bg-[#0e7a5d] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#0b654d] disabled:cursor-not-allowed disabled:bg-gray-300"
               >
-                {mode === "new" ? "Save product" : "Save changes"}
+                {saving
+                  ? "Saving…"
+                  : mode === "new"
+                    ? "Save product"
+                    : "Save changes"}
               </button>
               <Link
                 href="/admin/products"
@@ -545,7 +575,7 @@ export function ProductForm({
                 Cancel
               </Link>
               <p className="mt-3 text-center text-[11px] leading-relaxed text-gray-500">
-                Saved in this browser until the backend is connected.
+                Saved to the PostgreSQL database through the API.
               </p>
             </div>
           </aside>

@@ -1,8 +1,7 @@
 /**
  * Shared loading and error states for the admin pages.
  *
- * The demo uses localStorage, so these rarely appear. They are ready for the
- * real API: show a skeleton while data loads, and a retry button if it fails.
+ * Show a skeleton while data loads, and a retry button if the API fails.
  */
 
 export function AdminTableSkeleton({

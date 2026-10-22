@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { Logo } from "@/components/Logo";
+import { useAuth } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: "grid" },
@@ -47,18 +49,49 @@ function NavIcon({ name }: { name: "grid" | "bag" | "box" }) {
   );
 }
 
-export function AdminSidebar() {
+export function AdminSidebar({
+  admin,
+}: {
+  admin: { name: string; email: string };
+}) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // "/admin" should only be active on the dashboard. Sub-pages use startsWith.
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
 
+  const initials =
+    admin.name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "AD";
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      // The API deletes both session rows and clears the HttpOnly cookies.
+      await logout();
+    } finally {
+      router.replace("/login?next=/admin");
+      router.refresh();
+    }
+  };
+
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex sticky top-0 h-screen flex-col bg-[#14171d] text-white print:hidden">
-        <Link href="/admin" className="flex items-center gap-2.5 px-6 h-[72px]">
+      <aside data-surface="dark" className="hidden lg:flex sticky top-0 h-screen flex-col bg-[#14171d] text-white print:hidden">
+        <Link
+          href="/"
+          aria-label="Oakline storefront"
+          title="Back to storefront"
+          className="flex items-center gap-2.5 px-6 h-[72px]"
+        >
           <Logo size={30} />
           <span className="text-xl font-extrabold tracking-tight">Oakline</span>
           <span className="ms-auto rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/70">
@@ -66,13 +99,14 @@ export function AdminSidebar() {
           </span>
         </Link>
 
-        <nav className="mt-4 flex-1 space-y-1 px-3">
+        <nav aria-label="Admin navigation" className="mt-4 flex-1 space-y-1 px-3">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium transition-colors ${
                   active
                     ? "bg-white/10 text-white"
@@ -94,16 +128,26 @@ export function AdminSidebar() {
         <div className="border-t border-white/10 p-4">
           <div className="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0e7a5d] text-sm font-bold">
-              GA
+              {initials}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">Guest admin</p>
-              <p className="text-[11px] text-white/50">No login required yet</p>
+              <p className="truncate text-sm font-semibold">{admin.name}</p>
+              <p className="truncate text-[11px] text-white/50">
+                {admin.email}
+              </p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-60"
+          >
+            {loggingOut ? "Signing out…" : "Log out"}
+          </button>
           <Link
             href="/"
-            className="mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-white/15 px-3 py-2 text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+            className="mt-2 flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white/50 transition-colors hover:bg-white/5 hover:text-white"
           >
             View storefront <span aria-hidden="true">↗</span>
           </Link>
@@ -111,26 +155,42 @@ export function AdminSidebar() {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="lg:hidden sticky top-0 z-30 bg-[#14171d] text-white print:hidden">
+      <div data-surface="dark" className="lg:hidden sticky top-0 z-30 bg-[#14171d] text-white print:hidden">
         <div className="flex h-16 items-center justify-between px-5">
-          <Link href="/admin" className="flex items-center gap-2">
+          <Link
+            href="/"
+            aria-label="Oakline storefront"
+            title="Back to storefront"
+            className="flex items-center gap-2"
+          >
             <Logo size={28} />
             <span className="text-lg font-extrabold">Oakline</span>
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/70">
               Admin
             </span>
           </Link>
-          <Link href="/" className="text-sm text-white/70 hover:text-white">
-            Store ↗
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-sm text-white/70 hover:text-white">
+              Store ↗
+            </Link>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              className="text-sm font-medium text-white/70 hover:text-white disabled:opacity-60"
+            >
+              {loggingOut ? "Signing out…" : "Log out"}
+            </button>
+          </div>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-3">
+        <nav aria-label="Admin navigation" className="flex gap-1 overflow-x-auto px-3 pb-3">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium ${
                   active
                     ? "bg-white text-[#14171d]"

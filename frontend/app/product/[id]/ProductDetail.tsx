@@ -154,20 +154,22 @@ function ProductContent({
     <>
       <TopBanner />
       <Header />
-      <main className="mx-auto max-w-[1200px] px-5 w-full">
-        <nav className="text-[15px] text-gray-500 mt-6 flex gap-2">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1200px] px-5 w-full">
+        <nav aria-label={t.breadcrumb} className="text-[15px] text-gray-500 mt-6 flex gap-2">
           <Link href="/" className="hover:text-black">
             {t.home}
           </Link>
-          <span>/</span>
+          <span aria-hidden="true">/</span>
           <Link
             href={`/shop?category=${product.category}`}
             className="hover:text-black"
           >
             {product.category}
           </Link>
-          <span>/</span>
-          <span className="text-black font-semibold">{product.name}</span>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" className="text-black font-semibold">
+            {product.name}
+          </span>
         </nav>
 
         <section className="mt-6 grid md:grid-cols-2 gap-10">
@@ -185,12 +187,14 @@ function ProductContent({
               {thumbs.map((thumb, i) => (
                 <button
                   key={i}
+                  type="button"
                   onClick={() => setActiveImg(i)}
+                  aria-label={t.viewImage(i + 1)}
+                  aria-pressed={i === activeImg}
                   className={`relative overflow-hidden rounded-2xl aspect-square border-2 transition-colors ${
                     i === activeImg ? "border-black" : "border-transparent"
                   }`}
                   style={{ backgroundColor: thumb.tint }}
-                  aria-label={`View image ${i + 1}`}
                 >
                   <img
                     src={thumb.src}
@@ -233,11 +237,18 @@ function ProductContent({
               {t.finish}:{" "}
               <span className="font-normal text-gray-600">{finish}</span>
             </p>
-            <div className="mt-3 flex gap-3">
+            <div
+              role="group"
+              aria-label={t.finish}
+              className="mt-3 flex gap-3"
+            >
               {FINISHES.map((f) => (
                 <button
                   key={f.name}
+                  type="button"
                   title={f.name}
+                  aria-label={`${t.finish}: ${f.name}`}
+                  aria-pressed={finish === f.name}
                   onClick={() => setFinish(f.name)}
                   className={`w-10 h-10 rounded-full border-2 transition-all ${
                     finish === f.name
@@ -260,6 +271,7 @@ function ProductContent({
                 qty={qty}
                 onChange={setQty}
                 max={Math.max(1, stock)}
+                label={t.quantity}
               />
               <button
                 type="button"
@@ -275,6 +287,9 @@ function ProductContent({
                 {outOfStock ? t.outOfStock : added ? t.added : t.addToCart}
               </button>
             </div>
+            <p className="sr-only" role="status">
+              {added ? t.added : ""}
+            </p>
 
             <div className="mt-8 border-t border-gray-100 pt-6">
               <h3 className="font-bold">{t.details}</h3>

@@ -8,7 +8,7 @@ export function Footer({ full = true }: { full?: boolean }) {
   const { t } = useLanguage();
   if (!full) {
     return (
-      <footer className="bg-[#14171d] text-white mt-16">
+      <footer data-surface="dark" className="bg-[#14171d] text-white mt-16">
         <div className="mx-auto max-w-[1200px] px-5 py-6 flex items-center justify-between">
           <span className="flex items-center gap-2">
             <Logo size={30} />
@@ -20,7 +20,7 @@ export function Footer({ full = true }: { full?: boolean }) {
     );
   }
   return (
-    <footer className="bg-[#14171d] text-white mt-16">
+    <footer data-surface="dark" className="bg-[#14171d] text-white mt-16">
       <div className="mx-auto max-w-[1200px] px-5 pt-12 pb-6">
         <div className="flex flex-col md:flex-row gap-10 justify-between">
           <div>
@@ -32,7 +32,7 @@ export function Footer({ full = true }: { full?: boolean }) {
           </div>
           <div className="grid grid-cols-3 gap-12 text-sm">
             <div>
-              <div className="font-semibold mb-3">{t.shop}</div>
+              <h2 className="font-semibold mb-3">{t.shop}</h2>
               <ul className="space-y-2 text-white/60">
                 <li><Link href="/shop">{t.allProducts}</Link></li>
                 <li><Link href="/shop">{t.newArrivals}</Link></li>
@@ -40,7 +40,7 @@ export function Footer({ full = true }: { full?: boolean }) {
               </ul>
             </div>
             <div>
-              <div className="font-semibold mb-3">{t.support}</div>
+              <h2 className="font-semibold mb-3">{t.support}</h2>
               <ul className="space-y-2 text-white/60">
                 <li>{t.shippingLink}</li>
                 <li>{t.returns}</li>
@@ -48,7 +48,7 @@ export function Footer({ full = true }: { full?: boolean }) {
               </ul>
             </div>
             <div>
-              <div className="font-semibold mb-3">{t.company}</div>
+              <h2 className="font-semibold mb-3">{t.company}</h2>
               <ul className="space-y-2 text-white/60">
                 <li>{t.about}</li>
                 <li>{t.careers}</li>
