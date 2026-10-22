@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { TopBanner } from "@/components/TopBanner";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard, ProductImage } from "@/components/ProductCard";
 import { QtyStepper } from "@/components/QtyStepper";
-import { PRODUCTS, getProduct, formatPrice } from "@/lib/products";
-import { useCart, useSeedDemoCart } from "@/lib/cart";
+import { StorefrontError } from "@/components/StorefrontStates";
+import { formatPrice } from "@/lib/products";
+import { useCatalog, type CatalogProduct } from "@/lib/catalog";
+import { useCart } from "@/lib/cart";
 import { useLanguage } from "@/lib/language";
 
 const FINISHES = [
@@ -23,46 +25,122 @@ export function ProductDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  // `use()` unwraps the params promise passed down from the server page.
-  // It suspends until the promise resolves, so the parent's <Suspense> catches it.
+  // Read the Promise with `use()`. It pauses rendering until the params
+  // are ready, and the <Suspense> in page.tsx shows the fallback meanwhile.
   const { id } = use(params);
 
-  // The core of the fix: Next.js reuses the same client component instance when
-  // you navigate between two dynamic segments of the same route, so the
-  // useState values below (finish, qty, activeImg, added) would survive the
-  // navigation and show the previous product's choices on the new page.
-  // Keying on `id` makes React throw the old tree away and mount a fresh
-  // ProductDetailView, which re-runs the useState initializers for the new
-  // product. Splitting the view into a child is required because a component
-  // cannot change its own key — the key has to be set by a parent.
+  // Without a key, React reuses this component when you open another product
+  // and the old state (finish, quantity, image) stays visible. The key forces
+  // a fresh component, so each product starts with clean state.
   return <ProductDetailView key={id} id={id} />;
 }
 
+function PageShell({ children }: { children: ReactNode }) {
+  return (
+    <>
+      <TopBanner />
+      <Header />
+      <main className="mx-auto max-w-[1200px] px-5 w-full py-16">
+        {children}
+      </main>
+      <Footer full={false} />
+    </>
+  );
+}
+
 function ProductDetailView({ id }: { id: string }) {
-  useSeedDemoCart();
+  const { t } = useLanguage();
+  const { getProductById, visibleProducts, loading, error, reload } =
+    useCatalog();
+  const product = getProductById(id);
+
+  if (error) {
+    return (
+      <PageShell>
+        <StorefrontError message={error} onRetry={reload} />
+      </PageShell>
+    );
+  }
+
+  if (loading && !product) {
+    return (
+      <PageShell>
+        <div className="grid animate-pulse gap-10 md:grid-cols-2">
+          <div className="aspect-square rounded-3xl bg-gray-100" />
+          <div className="space-y-4">
+            <div className="h-4 w-24 rounded bg-gray-100" />
+            <div className="h-10 w-3/4 rounded bg-gray-100" />
+            <div className="h-7 w-28 rounded bg-gray-100" />
+            <div className="h-24 rounded bg-gray-100" />
+            <div className="h-12 w-48 rounded-full bg-gray-100" />
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (!product || product.hidden) {
+    return (
+      <PageShell>
+        <div className="py-12 text-center">
+          <p className="text-sm font-semibold tracking-wide text-gray-500">
+            404
+          </p>
+          <h1 className="mt-2 text-[32px] font-extrabold tracking-tight">
+            {t.productUnavailable}
+          </h1>
+          <Link
+            href="/shop"
+            className="mt-6 inline-block rounded-full bg-[#0e7a5d] px-6 py-3 font-semibold text-white transition-colors hover:bg-[#0b654d]"
+          >
+            {t.continueShopping}
+          </Link>
+        </div>
+      </PageShell>
+    );
+  }
+
+  return (
+    <ProductContent
+      key={product.id}
+      product={product}
+      relatedProducts={visibleProducts}
+    />
+  );
+}
+
+function ProductContent({
+  product,
+  relatedProducts,
+}: {
+  product: CatalogProduct;
+  relatedProducts: CatalogProduct[];
+}) {
   const { t } = useLanguage();
   const router = useRouter();
   const { add } = useCart();
-  const product = getProduct(id) ?? PRODUCTS[0];
 
   const [finish, setFinish] = useState(product.finish ?? "Sand");
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
 
-  // Client-side navigation keeps the window scroll offset, so landing on a
-  // product from a card at the bottom of the previous page would drop you in
-  // the middle of the new page. This effect only works *because* the view is
-  // remounted per `id` above: with an empty dependency array it runs once per
-  // mount, so every new product gets exactly one scroll reset. Had we kept a
-  // single long-lived component, this would fire only on the first product.
+  const stock = product.stock;
+  const outOfStock = stock <= 0;
+  const lowStock = stock > 0 && stock <= 8;
+
+  // Navigation keeps the old scroll position, so start every product at
+  // the top of the page. This runs once because the key above remounts it.
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   const related = useMemo(
-    () => PRODUCTS.filter((p) => p.id !== product.id).slice(0, 4),
-    [product.id],
+    () =>
+      relatedProducts
+        .filter((item) => item.id !== product.id && !item.hidden)
+        .slice(0, 4),
+    [product.id, relatedProducts],
   );
 
   const thumbs = [
@@ -99,7 +177,9 @@ function ProductDetailView({ id }: { id: string }) {
               image={thumbs[activeImg].src}
               alt={product.name}
               large
-              className="rounded-3xl aspect-square w-full"
+              className={`rounded-3xl aspect-square w-full ${
+                outOfStock ? "opacity-60" : ""
+              }`}
             />
             <div className="mt-3 grid grid-cols-4 gap-3">
               {thumbs.map((thumb, i) => (
@@ -124,8 +204,20 @@ function ProductDetailView({ id }: { id: string }) {
           </div>
 
           <div>
-            <p className="text-[13px] font-bold tracking-[0.12em] text-[#0e7a5d]">
-              {t.inStockLabel}
+            <p
+              className={`text-[13px] font-bold tracking-[0.12em] ${
+                outOfStock
+                  ? "text-red-600"
+                  : lowStock
+                    ? "text-amber-600"
+                    : "text-[#0e7a5d]"
+              }`}
+            >
+              {outOfStock
+                ? t.outOfStock
+                : lowStock
+                  ? t.onlyLeft(stock)
+                  : t.inStockLabel}
             </p>
             <h1 className="mt-2 text-[40px] leading-[1.05] font-extrabold tracking-tight">
               {product.name}
@@ -164,16 +256,23 @@ function ProductDetailView({ id }: { id: string }) {
             </div>
 
             <div className="mt-6 flex gap-3">
-              <QtyStepper qty={qty} onChange={setQty} />
+              <QtyStepper
+                qty={qty}
+                onChange={setQty}
+                max={Math.max(1, stock)}
+              />
               <button
+                type="button"
+                disabled={outOfStock}
                 onClick={() => {
+                  if (outOfStock) return;
                   add(product.id, qty, finish);
                   setAdded(true);
                   setTimeout(() => router.push("/cart"), 450);
                 }}
-                className="flex-1 bg-[#0e7a5d] hover:bg-[#0b654d] text-white font-bold rounded-full px-6 py-3 text-[16px] transition-colors"
+                className="flex-1 bg-[#0e7a5d] hover:bg-[#0b654d] text-white font-bold rounded-full px-6 py-3 text-[16px] transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 disabled:hover:bg-gray-300"
               >
-                {added ? t.added : t.addToCart}
+                {outOfStock ? t.outOfStock : added ? t.added : t.addToCart}
               </button>
             </div>
 
@@ -199,8 +298,8 @@ function ProductDetailView({ id }: { id: string }) {
             </Link>
           </div>
           <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-5">
-            {related.map((p) => (
-              <ProductCard key={p.id} product={p} />
+            {related.map((item) => (
+              <ProductCard key={item.id} product={item} stock={item.stock} />
             ))}
           </div>
         </section>

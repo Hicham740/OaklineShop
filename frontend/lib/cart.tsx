@@ -1,3 +1,5 @@
+// "use client" means this file runs in the browser, so it can use hooks
+// like useState and localStorage.
 "use client";
 
 import {
@@ -8,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getProduct } from "./products";
+import { useCatalog } from "./catalog";
 
 export interface CartLine {
   id: string;
@@ -28,6 +30,7 @@ interface CartContextValue {
 
 const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = "oakline-cart-v1";
+const SEED_KEY = "oakline-demo-cart-seeded-v1";
 
 function load(): CartLine[] {
   if (typeof window === "undefined") return [];
@@ -43,9 +46,31 @@ function load(): CartLine[] {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
+  const { getProductById } = useCatalog();
 
+  // localStorage only exists in the browser, so load the saved cart after
+  // the page mounts. This avoids a server/client HTML mismatch.
   useEffect(() => {
-    setLines(load());
+    const saved = load();
+    if (saved.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLines(saved);
+      return;
+    }
+
+    // On the very first visit, add two demo items so the cart is not empty.
+    // A flag makes sure we never add them again after the customer clears it.
+    try {
+      if (!localStorage.getItem(SEED_KEY)) {
+        localStorage.setItem(SEED_KEY, "1");
+        setLines([
+          { id: "ceramic-pour-over-set", qty: 1, variant: "Sand" },
+          { id: "linen-throw-blanket", qty: 1, variant: "Fog" },
+        ]);
+      }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -60,7 +85,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CartContextValue>(() => {
     const count = lines.reduce((s, l) => s + l.qty, 0);
     const subtotal = lines.reduce((s, l) => {
-      const p = getProduct(l.id);
+      const p = getProductById(l.id);
       return s + (p ? p.price * l.qty : 0);
     }, 0);
     return {
@@ -86,7 +111,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       remove: (id) => setLines((prev) => prev.filter((l) => l.id !== id)),
       clear: () => setLines([]),
     };
-  }, [lines]);
+  }, [lines, getProductById]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
@@ -95,17 +120,4 @@ export function useCart(): CartContextValue {
   const ctx = useContext(CartContext);
   if (!ctx) throw new Error("useCart must be used within CartProvider");
   return ctx;
-}
-
-/* Seed the demo cart (2 items) so the header badge matches the mockups
-   on a fresh visit. */
-export function useSeedDemoCart() {
-  const { lines, add } = useCart();
-  useEffect(() => {
-    if (lines.length === 0 && load().length === 0) {
-      add("ceramic-pour-over-set", 1, "Sand");
-      add("linen-throw-blanket", 1, "Fog");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 }

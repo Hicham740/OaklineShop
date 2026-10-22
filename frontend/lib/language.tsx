@@ -52,6 +52,9 @@ const en = {
   productsCount: (n: number) => `${n} products`,
   noResults: "No products match your filters.",
   inStockLabel: "IN STOCK",
+  outOfStock: "OUT OF STOCK",
+  onlyLeft: (n: number) => `ONLY ${n} LEFT`,
+  productUnavailable: "This product is no longer available.",
   finish: "Finish",
   colour: "Colour",
   addToCart: "Add to cart",
@@ -74,6 +77,13 @@ const en = {
   address: "Address",
   city: "City",
   postalCode: "Postal code",
+  errRequired: "This field is required.",
+  errEmail: "Enter a valid email address.",
+  errPhone: "Enter a valid Algerian mobile number (e.g. 0550 12 34 56).",
+  errPostalCode: "Enter a 5-digit postal code.",
+  completeFields: "Complete the required fields above to place your order.",
+  stockIssue:
+    "Some items are no longer available in the requested quantity. Update your cart to continue.",
   payment: "Payment",
   paymentMethod: "Payment method",
   payCOD: "Cash on delivery",
@@ -98,6 +108,20 @@ const en = {
   placeOrder: "Place order",
   orderPlaced: "Order placed ✓",
   encryptedNote: "Payments are encrypted. Returns accepted within 30 days.",
+  orderConfirmed: "Order confirmed",
+  orderConfirmedSub:
+    "Thank you. We have received your order and will contact you soon.",
+  orderNumber: "Order number",
+  orderTotal: "Order total",
+  deliveryAddress: "Delivery address",
+  contactDetails: "Contact details",
+  nextSteps: "What happens next?",
+  nextStepsCOD:
+    "Our courier will call you to confirm the delivery. Pay in cash when your order arrives.",
+  nextStepsCard:
+    "Our team will contact you to complete the card payment securely before shipping.",
+  demoOrderNote: "This is a demo order. No payment has been taken yet.",
+  backToHome: "Back to home",
   footerTagline: "Well-made goods for everyday living.",
   shop: "Shop",
   allProducts: "All products",
@@ -161,6 +185,9 @@ const ar: Strings = {
   productsCount: (n: number) => `${n} منتجات`,
   noResults: "لا توجد منتجات مطابقة للفلاتر.",
   inStockLabel: "متوفر",
+  outOfStock: "غير متوفر",
+  onlyLeft: (n: number) => `بقي ${n} فقط`,
+  productUnavailable: "هذا المنتج لم يعد متوفراً.",
   finish: "التشطيب",
   colour: "اللون",
   addToCart: "أضف إلى السلة",
@@ -183,6 +210,13 @@ const ar: Strings = {
   address: "العنوان",
   city: "المدينة",
   postalCode: "الرمز البريدي",
+  errRequired: "هذا الحقل مطلوب.",
+  errEmail: "أدخل بريداً إلكترونياً صالحاً.",
+  errPhone: "أدخل رقم هاتف جزائري صالح (مثال: 0550 12 34 56).",
+  errPostalCode: "أدخل رمزاً بريدياً من 5 أرقام.",
+  completeFields: "أكمل الحقول المطلوبة أعلاه لتأكيد طلبك.",
+  stockIssue:
+    "بعض المنتجات لم تعد متوفرة بالكمية المطلوبة. عدّل السلة للمتابعة.",
   payment: "الدفع",
   paymentMethod: "طريقة الدفع",
   payCOD: "الدفع عند الاستلام",
@@ -207,6 +241,19 @@ const ar: Strings = {
   placeOrder: "تأكيد الطلب",
   orderPlaced: "تم تأكيد الطلب ✓",
   encryptedNote: "المدفوعات مشفّرة. يُقبل الإرجاع خلال 30 يوماً.",
+  orderConfirmed: "تم تأكيد الطلب",
+  orderConfirmedSub: "شكراً لك. استلمنا طلبك وسنتواصل معك قريباً.",
+  orderNumber: "رقم الطلب",
+  orderTotal: "إجمالي الطلب",
+  deliveryAddress: "عنوان التوصيل",
+  contactDetails: "بيانات الاتصال",
+  nextSteps: "ماذا يحدث بعد ذلك؟",
+  nextStepsCOD:
+    "سيتصل بك عامل التوصيل لتأكيد التسليم. ادفع نقداً عند وصول طلبك.",
+  nextStepsCard:
+    "سيتواصل معك فريقنا لإتمام الدفع بالبطاقة بشكل آمن قبل الشحن.",
+  demoOrderNote: "هذا طلب تجريبي. لم يتم خصم أي مبلغ بعد.",
+  backToHome: "العودة إلى الرئيسية",
   footerTagline: "منتجات متقنة لحياتك اليومية.",
   shop: "تسوّق",
   allProducts: "كل المنتجات",
@@ -241,9 +288,11 @@ const LanguageContext = createContext<LanguageValue | null>(null);
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>("en");
 
+  // Read the saved language after mount, because localStorage is browser-only.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (saved === "ar" || saved === "en") setLocale(saved);
     } catch {
       /* ignore */

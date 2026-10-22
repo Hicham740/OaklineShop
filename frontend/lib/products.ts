@@ -1,4 +1,8 @@
-export type Category = "Living" | "Kitchen" | "Bedroom" | "Outdoor";
+/**
+ * Categories are plain strings because the admin can add new ones. The list
+ * below is only the starting set for the demo catalogue.
+ */
+export type Category = string;
 
 export interface Product {
   id: string;
@@ -6,7 +10,7 @@ export interface Product {
   price: number;
   category: Category;
   tint: string;
-  /** Local product photo in /public/products (see ATTRIBUTION.md for credits). */
+  /** Path to the product photo in the public folder. */
   image: string;
   isNew?: boolean;
   inStock: boolean;
@@ -15,7 +19,12 @@ export interface Product {
   description: string;
 }
 
-export const CATEGORIES: Category[] = ["Living", "Kitchen", "Bedroom", "Outdoor"];
+export const CATEGORIES: Category[] = [
+  "Living",
+  "Kitchen",
+  "Bedroom",
+  "Outdoor",
+];
 
 export const PRODUCTS: Product[] = [
   {

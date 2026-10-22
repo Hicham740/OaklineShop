@@ -6,32 +6,48 @@ import { TopBanner } from "@/components/TopBanner";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
-import { getProduct, BEST_SELLERS } from "@/lib/products";
-import { useSeedDemoCart } from "@/lib/cart";
+import { BEST_SELLERS } from "@/lib/products";
+import { useCatalog } from "@/lib/catalog";
 import { useLanguage } from "@/lib/language";
 
-const CATEGORY_CARDS = [
-  { key: "Living", tint: "#E4EAF0", image: "/products/linen-throw-blanket.jpg" },
-  { key: "Kitchen", tint: "#E7DCC8", image: "/products/ceramic-pour-over-set.jpg" },
-  { key: "Bedroom", tint: "#E9E1D3", image: "/products/brass-table-lamp.jpg" },
-  { key: "Outdoor", tint: "#DCE7E2", image: "/products/woven-storage-basket.jpg" },
-] as const;
+const CATEGORY_CARDS: Record<string, { tint: string; image: string }> = {
+  Living: { tint: "#E4EAF0", image: "/products/linen-throw-blanket.jpg" },
+  Kitchen: { tint: "#E7DCC8", image: "/products/ceramic-pour-over-set.jpg" },
+  Bedroom: { tint: "#E9E1D3", image: "/products/brass-table-lamp.jpg" },
+  Outdoor: { tint: "#DCE7E2", image: "/products/woven-storage-basket.jpg" },
+};
+
+const FALLBACK_TINTS = ["#E4EAF0", "#E7DCC8", "#E9E1D3", "#DCE7E2"];
 
 export default function Home() {
-  useSeedDemoCart();
   const { t } = useLanguage();
+  const { visibleProducts, categories } = useCatalog();
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
-  const bestSellers = BEST_SELLERS.map((id) => getProduct(id)!).filter(Boolean);
+  const bestSellers = BEST_SELLERS.map((id) =>
+    visibleProducts.find((product) => product.id === id),
+  ).filter((product) => product !== undefined);
 
-  const catLabel = (key: string) =>
-    key === "Living"
-      ? t.catLiving
-      : key === "Kitchen"
-        ? t.catKitchen
-        : key === "Bedroom"
-          ? t.catBedroom
-          : t.catOutdoor;
+  const categoryCards = categories.map((key, index) => {
+    const preset = CATEGORY_CARDS[key];
+    const productImage = visibleProducts.find(
+      (product) => product.category === key && product.image,
+    )?.image;
+
+    return {
+      key,
+      tint: preset?.tint ?? FALLBACK_TINTS[index % FALLBACK_TINTS.length],
+      image: preset?.image ?? productImage ?? "",
+    };
+  });
+
+  const catLabel = (key: string) => {
+    if (key === "Living") return t.catLiving;
+    if (key === "Kitchen") return t.catKitchen;
+    if (key === "Bedroom") return t.catBedroom;
+    if (key === "Outdoor") return t.catOutdoor;
+    return key;
+  };
 
   return (
     <>
@@ -81,19 +97,21 @@ export default function Home() {
             {t.shopByCategory}
           </h2>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            {CATEGORY_CARDS.map((c) => (
+            {categoryCards.map((c) => (
               <Link
                 key={c.key}
-                href={`/shop?category=${c.key}`}
+                href={`/shop?category=${encodeURIComponent(c.key)}`}
                 className="group relative overflow-hidden rounded-2xl min-h-[160px] flex items-end"
                 style={{ backgroundColor: c.tint }}
               >
-                <img
-                  src={c.image}
-                  alt={catLabel(c.key)}
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
+                {c.image && (
+                  <img
+                    src={c.image}
+                    alt={catLabel(c.key)}
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                )}
                 <span
                   aria-hidden="true"
                   className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/45 to-transparent"
@@ -118,7 +136,7 @@ export default function Home() {
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-5">
             {bestSellers.map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard key={p.id} product={p} stock={p.stock} />
             ))}
           </div>
         </section>

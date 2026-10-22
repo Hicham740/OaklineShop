@@ -7,13 +7,15 @@ import { TopBanner } from "@/components/TopBanner";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
-import { CATEGORIES, PRODUCTS } from "@/lib/products";
+import { ProductGridSkeleton, StorefrontError } from "@/components/StorefrontStates";
 import { USD_TO_DZD } from "@/lib/currency";
-import { useSeedDemoCart } from "@/lib/cart";
+import { useCatalog } from "@/lib/catalog";
 import { useLanguage } from "@/lib/language";
 
 const PAGE_SIZE = 9;
 
+// `useSearchParams` must be inside a Suspense boundary, so we split the page
+// into an outer wrapper and an inner component.
 export default function ShopPage() {
   return (
     <Suspense
@@ -25,8 +27,8 @@ export default function ShopPage() {
 }
 
 function ShopInner() {
-  useSeedDemoCart();
   const { t } = useLanguage();
+  const { visibleProducts, categories, loading, error, reload } = useCatalog();
   const params = useSearchParams();
   const router = useRouter();
 
@@ -52,8 +54,8 @@ function ShopInner() {
     [],
   );
 
-  // Live search: the grid filters on every keystroke via `query` state,
-  // and the URL follows (debounced) so the header box and refresh stay in sync.
+  // Live search: update the grid immediately, then put the search term
+  // in the URL after a short pause so the page can be refreshed or shared.
   const handleQuery = (v: string) => {
     setQuery(v);
     setPage(1);
@@ -67,16 +69,16 @@ function ShopInner() {
     }, 500);
   };
 
+  // Read filters from the URL when it changes (back/forward buttons or
+  // category links from the home page).
   useEffect(() => {
-    // Sync from the URL (back/forward buttons, category cards on Home)
-    // without clobbering the user's checkbox state on our own replaces.
     const fromUrl = parseCats(paramCategory);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCats((prev) =>
       prev.join(",") !== fromUrl.join(",") ? fromUrl : prev,
     );
     setQuery(paramQ);
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramCategory, paramQ]);
 
   const SORT_OPTIONS = [
@@ -86,14 +88,13 @@ function ShopInner() {
     { value: "name", label: t.nameSort },
   ];
 
-  const catLabel = (c: string) =>
-    c === "Living"
-      ? t.catLiving
-      : c === "Kitchen"
-        ? t.catKitchen
-        : c === "Bedroom"
-          ? t.catBedroom
-          : t.catOutdoor;
+  const catLabel = (c: string) => {
+    if (c === "Living") return t.catLiving;
+    if (c === "Kitchen") return t.catKitchen;
+    if (c === "Bedroom") return t.catBedroom;
+    if (c === "Outdoor") return t.catOutdoor;
+    return c;
+  };
 
   const toggleCat = (c: string) => {
     const next = cats.includes(c) ? cats.filter((x) => x !== c) : [...cats, c];
@@ -107,7 +108,7 @@ function ShopInner() {
   };
 
   const filtered = useMemo(() => {
-    let list = [...PRODUCTS];
+    let list = [...visibleProducts];
     if (cats.length) list = list.filter((p) => cats.includes(p.category));
     if (query)
       list = list.filter((p) =>
@@ -115,18 +116,27 @@ function ShopInner() {
       );
     const loDzd = parseFloat(min);
     const hiDzd = parseFloat(max);
-    // Price inputs are in Algerian dinars; stored prices are USD.
+    // The price inputs are in DZD, but product prices are stored in USD.
     if (!Number.isNaN(loDzd))
       list = list.filter((p) => p.price >= loDzd / USD_TO_DZD);
     if (!Number.isNaN(hiDzd))
       list = list.filter((p) => p.price <= hiDzd / USD_TO_DZD);
-    if (inStockOnly) list = list.filter((p) => p.inStock);
+    if (inStockOnly) list = list.filter((p) => p.stock > 0);
     if (onSaleOnly) list = list.filter((p) => p.onSale);
     if (sort === "low") list.sort((a, b) => a.price - b.price);
     if (sort === "high") list.sort((a, b) => b.price - a.price);
     if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
     return list;
-  }, [cats, query, min, max, inStockOnly, onSaleOnly, sort]);
+  }, [
+    visibleProducts,
+    cats,
+    query,
+    min,
+    max,
+    inStockOnly,
+    onSaleOnly,
+    sort,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -196,7 +206,7 @@ function ShopInner() {
             <div>
               <h3 className="font-bold mb-3">{t.category}</h3>
               <ul className="space-y-3 text-[15px]">
-                {CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <li key={c}>
                     <label className="flex items-center gap-2.5 cursor-pointer">
                       <input
@@ -285,12 +295,16 @@ function ShopInner() {
 
           {/* Grid */}
           <div>
-            {filtered.length === 0 ? (
+            {error ? (
+              <StorefrontError message={error} onRetry={reload} />
+            ) : loading && visibleProducts.length === 0 ? (
+              <ProductGridSkeleton />
+            ) : filtered.length === 0 ? (
               <p className="text-gray-500 py-20 text-center">{t.noResults}</p>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-8">
                 {paged.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+                  <ProductCard key={p.id} product={p} stock={p.stock} />
                 ))}
               </div>
             )}

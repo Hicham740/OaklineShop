@@ -53,7 +53,17 @@ export function ProductImage({
   );
 }
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({
+  product,
+  stock,
+}: {
+  product: Product;
+  stock?: number;
+}) {
+  const currentStock = stock ?? (product.inStock ? 1 : 0);
+  const outOfStock = currentStock <= 0;
+  const lowStock = currentStock > 0 && currentStock <= 8;
+
   return (
     <Link href={`/product/${product.id}`} className="group block">
       <div className="relative">
@@ -62,18 +72,32 @@ export function ProductCard({ product }: { product: Product }) {
             New
           </span>
         )}
+        {outOfStock && (
+          <span className="absolute right-3 top-3 z-10 rounded-full bg-white/95 px-3 py-1 text-[12px] font-semibold text-red-600">
+            Out of stock
+          </span>
+        )}
         <ProductImage
           tint={product.tint}
           image={product.image}
           alt={product.name}
-          className="aspect-[3/3.6] rounded-2xl transition-transform group-hover:scale-[1.01]"
+          className={`aspect-[3/3.6] rounded-2xl transition-transform group-hover:scale-[1.01] ${
+            outOfStock ? "opacity-60" : ""
+          }`}
         />
       </div>
-      <div className="mt-3 flex items-baseline justify-between gap-3">
-        <span className="font-medium text-[15px]">{product.name}</span>
-        <span className="text-gray-500 text-[15px]">
-          {formatPrice(product.price)}
-        </span>
+      <div className="mt-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="font-medium text-[15px]">{product.name}</span>
+          <span className="text-gray-500 text-[15px]">
+            {formatPrice(product.price)}
+          </span>
+        </div>
+        {lowStock && (
+          <p className="mt-0.5 text-xs font-semibold text-amber-600">
+            Only {currentStock} left
+          </p>
+        )}
       </div>
     </Link>
   );

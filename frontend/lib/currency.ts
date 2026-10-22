@@ -1,6 +1,5 @@
-/** USD → Algerian dinar conversion for display.
- *  Prices are stored in USD; checkout and all labels show DZD.
- *  Adjust USD_TO_DZD when the rate moves. */
+/** Prices are stored in USD but displayed in Algerian dinars.
+ *  Change USD_TO_DZD when the exchange rate changes. */
 export const USD_TO_DZD = 135;
 
 export function toDZD(usd: number): number {
@@ -14,7 +13,7 @@ export function formatDZDValue(dzd: number): string {
   return `${group.format(dzd)} دج`;
 }
 
-/** Format a USD base price as Algerian dinars, e.g. 48 → "6 500 دج". */
+/** Format a USD price in Algerian dinars, e.g. 48 → "6 500 دج". */
 export function formatPrice(usd: number): string {
   return formatDZDValue(toDZD(usd));
 }

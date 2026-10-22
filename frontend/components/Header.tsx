@@ -16,15 +16,6 @@ function SearchIcon() {
   );
 }
 
-function UserIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6" />
-    </svg>
-  );
-}
-
 function BagIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -55,14 +46,13 @@ function HeaderSearchForm() {
   const lastPushed = useRef(params.get("q") ?? "");
   const urlQ = params.get("q") ?? "";
 
-  // Follow the URL when it changes elsewhere (sidebar search, clear
-  // filters), but never clobber text this input just typed.
+  // Keep the input in sync when the URL changes (for example, after
+  // "Clear filters"), but don't overwrite what the user is typing.
   useEffect(() => {
     if (urlQ !== lastPushed.current) {
       lastPushed.current = urlQ;
       setQ(urlQ);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlQ]);
 
   useEffect(
@@ -86,8 +76,8 @@ function HeaderSearchForm() {
 
   const handleType = (v: string) => {
     setQ(v);
-    // Live-filter the grid while typing on the shop page (debounced so
-    // mid-word keystrokes don't spam the URL). Other pages navigate on submit.
+    // On the shop page, filter as the user types. A small delay avoids
+    // updating the URL on every single keystroke.
     if (!onShop) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => pushQuery(v, false), 350);
@@ -174,9 +164,6 @@ export function Header({ minimal = false }: { minimal?: boolean }) {
                 className="flex items-center gap-2 border border-black rounded-full px-4 py-2 text-sm font-medium hover:bg-black hover:text-white transition-colors"
               >
                 <GlobeIcon /> {locale === "en" ? "العربية" : "English"}
-              </button>
-              <button aria-label="Account" className="hover:text-[#0e7a5d]">
-                <UserIcon />
               </button>
               <Link
                 href="/cart"
