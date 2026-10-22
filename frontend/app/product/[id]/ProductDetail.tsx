@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TopBanner } from "@/components/TopBanner";
 import { Header } from "@/components/Header";
@@ -18,7 +18,27 @@ const FINISHES = [
   { name: "Olive", color: "#7A8B6F" },
 ];
 
-export function ProductDetail({ id }: { id: string }) {
+export function ProductDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  // `use()` unwraps the params promise passed down from the server page.
+  // It suspends until the promise resolves, so the parent's <Suspense> catches it.
+  const { id } = use(params);
+
+  // The core of the fix: Next.js reuses the same client component instance when
+  // you navigate between two dynamic segments of the same route, so the
+  // useState values below (finish, qty, activeImg, added) would survive the
+  // navigation and show the previous product's choices on the new page.
+  // Keying on `id` makes React throw the old tree away and mount a fresh
+  // ProductDetailView, which re-runs the useState initializers for the new
+  // product. Splitting the view into a child is required because a component
+  // cannot change its own key — the key has to be set by a parent.
+  return <ProductDetailView key={id} id={id} />;
+}
+
+function ProductDetailView({ id }: { id: string }) {
   useSeedDemoCart();
   const { t } = useLanguage();
   const router = useRouter();
@@ -29,6 +49,16 @@ export function ProductDetail({ id }: { id: string }) {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
+
+  // Client-side navigation keeps the window scroll offset, so landing on a
+  // product from a card at the bottom of the previous page would drop you in
+  // the middle of the new page. This effect only works *because* the view is
+  // remounted per `id` above: with an empty dependency array it runs once per
+  // mount, so every new product gets exactly one scroll reset. Had we kept a
+  // single long-lived component, this would fire only on the first product.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const related = useMemo(
     () => PRODUCTS.filter((p) => p.id !== product.id).slice(0, 4),
